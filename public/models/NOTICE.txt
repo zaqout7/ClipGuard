@@ -1,0 +1,29 @@
+ClipGuard bundled local inference assets
+
+Model
+Name: AdamCodd/vit-base-nsfw-detector
+Source: https://huggingface.co/AdamCodd/vit-base-nsfw-detector
+Pinned revision: 8587de998f441aac03fdd57a85d2e4cb808c7d64
+Model card license metadata: Apache-2.0
+No separate LICENSE file was present at the pinned model revision; the license
+designation comes from the model card metadata.
+Model card: https://huggingface.co/AdamCodd/vit-base-nsfw-detector/raw/8587de998f441aac03fdd57a85d2e4cb808c7d64/README.md
+Supported labels: sfw and nsfw image classes only.
+The model card says the model tends to classify cleavage or "too much skin" as nsfw,
+reports weaker evaluation results on generated images, and warns of classification
+errors. Its reported metrics are the model author's evaluation, not ClipGuard
+validation or an accuracy guarantee. Softmax scores are not calibrated probabilities.
+
+Runtime
+Package: onnxruntime-web 1.30.0
+License metadata: MIT
+Runtime source: https://github.com/microsoft/onnxruntime
+The browser integration currently uses the CPU WebAssembly provider. No GPU
+provider, Python runtime, desktop runtime, or network model download is required.
+
+Model artifact checksum
+model_quantized.onnx SHA-256:
+432763a6899ebc418c55f784b98f90565e5fc694c778d2ffcb0294b12f6a7404
+
+The model and runtime files are distributed as local public assets. Preserve
+applicable upstream license and notice terms when copying or redistributing them.

@@ -1,0 +1,59 @@
+# Dependencies
+node_modules/
+
+# Generated builds and packaged application
+/dist/
+/dist-electron/
+/release/
+/out/
+**/win-unpacked/
+
+# Caches and coverage
+.vite/
+coverage/
+*.tsbuildinfo
+
+# Credentials and environment files
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.pfx
+*.p12
+
+# Logs
+*.log
+
+# Model weights
+*.onnx
+*.pt
+*.pth
+*.safetensors
+
+# Executables and native runtime assets
+*.exe
+*.msi
+*.dll
+*.wasm
+
+# Video and audio files
+*.mp4
+*.mkv
+*.webm
+*.mov
+*.avi
+*.m4v
+*.mp3
+*.wav
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# Operating-system files
+Thumbs.db
+Desktop.ini
+.DS_Store
