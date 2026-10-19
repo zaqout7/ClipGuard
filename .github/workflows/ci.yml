@@ -51,7 +51,13 @@ jobs:
           MODEL_URL="https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx"
 
           echo "Downloading NudeNet 320n model from official release..."
-          curl -fL -sS --connect-timeout 30 --max-time 180 --retry 3 -o "$TMP_FILE" "$MODEL_URL"
+          curl -fL -sS --connect-timeout 30 --max-time 180 --retry 3 \
+            -o "$TMP_FILE" \
+            -w "HTTP code: %{http_code}\nContent-Type: %{content_type}\n" \
+            "$MODEL_URL"
+
+          echo "File size: $(stat -c %s "$TMP_FILE") bytes"
+          file "$TMP_FILE"
 
           echo "Verifying model SHA-256 checksum..."
           CALCULATED_SHA256=$(sha256sum "$TMP_FILE" | awk '{print tolower($1)}')
