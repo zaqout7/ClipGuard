@@ -14,7 +14,7 @@
     "desktop:dist": "npm run build && npm run desktop:compile && electron-builder --win nsis --x64",
     "clean": "rm -rf dist server.js clipguard-project.tar.gz",
     "lint": "tsc --noEmit",
-    "test": "node --import tsx --test tests/formatters.test.ts tests/modelPreprocessing.test.ts tests/youtube.test.ts tests/accuracyAndDiagnostics.test.ts tests/detectionPipelineRegression.test.ts tests/geminiService.test.ts"
+    "test": "node --import tsx --test tests/formatters.test.ts tests/modelPreprocessing.test.ts tests/youtube.test.ts tests/accuracyAndDiagnostics.test.ts tests/detectionPipelineRegression.test.ts tests/geminiService.test.ts tests/geminiFileLifecycle.test.ts"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
