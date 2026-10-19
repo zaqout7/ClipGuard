@@ -24,6 +24,7 @@ import {
 import { PRESET_SCENARIOS, PresetScenario } from './utils/presets';
 import { formatSecondsToTimestamp } from './utils/formatters';
 import { analyzeLocalVideo } from './utils/localAnalysis';
+import { analyzeVideoWithGemini } from './utils/geminiAnalysis';
 import { AlertCircle, Film, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export default function App() {
@@ -40,6 +41,7 @@ export default function App() {
   const analysisJobRef = useRef(0);
   const abortControllerRef = useRef<AbortController | null>(null);
   const activeSourceIdRef = useRef<string | null>(null);
+  const activeYouTubeJobIdRef = useRef<string | null>(null);
   const [progress, setProgress] = useState<AnalysisProgress>({
     phase: 'idle',
     progressPercent: 0,
@@ -50,17 +52,26 @@ export default function App() {
 
   // Configuration State
   const [options, setOptions] = useState<AnalysisOptions>({
-    sensitivity: 70,
+    sensitivity: 40,
     mergeToleranceSec: 2.5,
     bufferSec: 0.5,
     sampleIntervalSec: 1.5,
     categories: {
-      possible_chest_exposure: true,
-      possible_rear_exposure: true,
-      clothing_shift_revealing: true,
-      undergarment_slip: true,
-      other_wardrobe_anomaly: true,
-      nsfw_image_classification: true,
+      possible_chest_exposure: true,    // Core explicit exposure
+      possible_rear_exposure: true,     // Core explicit exposure
+      nsfw_image_classification: true,  // Core explicit exposure
+      clothing_shift_revealing: false,  // Optional broad review (cleavage/covered breast) — disabled by default
+      undergarment_slip: false,         // Optional broad review — disabled by default
+      other_wardrobe_anomaly: false,    // Optional broad review (midriff/belly) — disabled by default
+      covered_buttocks_outline: false,  // Optional broad review (visible buttock outline through clothing) — disabled by default
+    },
+    engine: 'local_onnx',
+    geminiConfig: {
+      apiKey: '',
+      model: 'gemini-3.8-flash',
+      fps: 4,
+      userConfirmedProjectBillingIntent: false,
+      userConsentedVideoUpload: false,
     },
   });
 
@@ -85,24 +96,36 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (currentVideo?.sourceType !== 'upload') return;
+    if (currentVideo?.sourceType !== 'upload' && currentVideo?.sourceType !== 'youtube') return;
     const objectUrl = currentVideo.url;
-    return () => URL.revokeObjectURL(objectUrl);
+    const videoId = currentVideo.id;
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+      if (videoId.startsWith('yt-')) {
+        const jobId = videoId.slice(3);
+        fetch(`/api/youtube/cleanup/${jobId}`, { method: 'POST' }).catch(() => {});
+      }
+    };
   }, [currentVideo?.id, currentVideo?.sourceType, currentVideo?.url]);
 
   useEffect(() => () => abortControllerRef.current?.abort(), []);
 
   const cancelAnalysis = () => {
-    if (!abortControllerRef.current) return;
+    if (activeYouTubeJobIdRef.current) {
+      const ytId = activeYouTubeJobIdRef.current;
+      activeYouTubeJobIdRef.current = null;
+      fetch(`/api/youtube/cancel/${ytId}`, { method: 'POST' }).catch(() => {});
+    }
+    if (!abortControllerRef.current && !isAnalyzing) return;
     analysisJobRef.current += 1;
-    abortControllerRef.current.abort();
+    abortControllerRef.current?.abort();
     abortControllerRef.current = null;
     setIsAnalyzing(false);
     setProgress({
       phase: 'cancelled',
       progressPercent: null,
       statusText: 'Analysis cancelled',
-      details: 'The active browser worker was terminated. No partial results are presented.',
+      details: 'The active operation was cancelled. No partial results are presented.',
       incomplete: true,
     });
   };
@@ -127,6 +150,35 @@ export default function App() {
     });
 
     try {
+      if (runOptions.engine === 'gemini_video') {
+        const geminiRes = await analyzeVideoWithGemini({
+          file,
+          sourceId,
+          options: runOptions,
+          signal: controller.signal,
+          onProgress: (nextProgress) => {
+            if (jobId === analysisJobRef.current && sourceId === activeSourceIdRef.current) {
+              setProgress(nextProgress);
+            }
+          },
+        });
+        if (jobId !== analysisJobRef.current || sourceId !== activeSourceIdRef.current) return;
+        setDetections(geminiRes.detections);
+        setCompletedAnalysisOptions(runOptions);
+        setActiveDetection(geminiRes.detections[0] ?? null);
+        setProgress({
+          phase: 'complete',
+          progressPercent: 100,
+          statusText: 'Gemini 4 FPS analysis complete — review potential matches',
+          details: `Analyzed via Google Gemini API at exactly 4 FPS (${geminiRes.report.samplingRateDescription}, videoMetadata.fps: 4). ${geminiRes.report.frameCoverageNotice} ${geminiRes.report.interFrameWarning} ${
+            geminiRes.detections.length === 0 ? 'No sampled frames exceeded the threshold; this is not evidence that the video is safe.' : ''
+          }`,
+          currentCandidateCount: geminiRes.detections.length,
+          incomplete: false,
+        });
+        return;
+      }
+
       const result = await analyzeLocalVideo({
         file,
         sourceId,
@@ -154,10 +206,14 @@ export default function App() {
       setProgress({
         phase: 'complete',
         progressPercent: 100,
-        statusText: 'Analysis complete — review potential matches',
-        details: result.detections.length
-          ? `${result.sampledFrames} sampled frames analyzed locally using ${result.provider}. Matches require human review; sparse sampling may miss brief content. ${result.usedSeekTimeFallback ? 'Some timestamps use seek-time fallback rather than decoded-frame mediaTime.' : 'Timestamps use decoded-frame mediaTime.'}`
-          : `${result.sampledFrames} sampled frames analyzed locally using ${result.provider}. No sampled frame exceeded the selected threshold; this is not evidence that the video is safe. ${result.usedSeekTimeFallback ? 'Some timestamps used seek-time fallback.' : 'Timestamps use decoded-frame mediaTime.'}`,
+        statusText: result.detectorBackend === 'vit'
+          ? 'Analysis complete (ViT Fallback) — review potential matches'
+          : 'Analysis complete — review potential matches',
+        details: result.fallbackWarning
+          ? `[FALLBACK MODE: ${result.fallbackWarning}] ${result.sampledFrames} sampled frames analyzed locally using ${result.provider}.`
+          : result.detections.length
+          ? `${result.sampledFrames} sampled frames analyzed locally using ${result.provider} (${result.detectorBackend === 'nudenet' ? 'NudeNet detector' : 'ViT fallback'}). Matches require human review; sparse sampling may miss brief content. ${result.usedSeekTimeFallback ? 'Some timestamps use seek-time fallback rather than decoded-frame mediaTime.' : 'Timestamps use decoded-frame mediaTime.'}`
+          : `${result.sampledFrames} sampled frames analyzed locally using ${result.provider} (${result.detectorBackend === 'nudenet' ? 'NudeNet detector' : 'ViT fallback'}). No sampled frame exceeded the selected threshold; this is not evidence that the video is safe. ${result.usedSeekTimeFallback ? 'Some timestamps used seek-time fallback.' : 'Timestamps use decoded-frame mediaTime.'}`,
         currentCandidateCount: result.detections.length,
         processedFrames: result.sampledFrames,
         totalFrames: result.sampledFrames,
@@ -187,6 +243,229 @@ export default function App() {
     } finally {
       if (jobId === analysisJobRef.current) {
         abortControllerRef.current = null;
+        setIsAnalyzing(false);
+      }
+    }
+  };
+
+  // YouTube Acquisition + On-Device Local Analysis Pipeline
+  const handleYouTubeAnalysis = async (rawUrl: string) => {
+    cancelAnalysis();
+    const jobId = ++analysisJobRef.current;
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+    setIsAnalyzing(true);
+    setErrorMessage(null);
+    setDetections([]);
+    setCompletedAnalysisOptions(null);
+    setActiveDetection(null);
+
+    const ytJobId = crypto.randomUUID();
+    activeYouTubeJobIdRef.current = ytJobId;
+
+    setProgress({
+      phase: 'preparing_video',
+      progressPercent: null,
+      statusText: 'Contacting YouTube via local service…',
+      details: 'Retrieving video stream details for local on-device analysis.',
+    });
+
+    try {
+      // 1. Fetch metadata using local yt-dlp service
+      const infoRes = await fetch('/api/youtube/info', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: rawUrl }),
+        signal: controller.signal,
+      });
+
+      const infoData = await infoRes.json();
+      if (!infoRes.ok || !infoData.success) {
+        throw new Error(infoData.error || 'Failed to query YouTube video.');
+      }
+
+      const metadata: VideoMetadata = infoData.metadata;
+      if (jobId !== analysisJobRef.current) return;
+
+      // 2. Start background download via yt-dlp
+      const prepRes = await fetch('/api/youtube/prepare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: rawUrl, jobId: ytJobId, metadata }),
+        signal: controller.signal,
+      });
+
+      const prepData = await prepRes.json();
+      if (!prepRes.ok || !prepData.success) {
+        throw new Error(prepData.error || 'Failed to initialize YouTube video download.');
+      }
+
+      // 3. Poll download progress
+      let downloadComplete = false;
+      while (!downloadComplete) {
+        if (controller.signal.aborted || jobId !== analysisJobRef.current) {
+          return;
+        }
+
+        await new Promise((r) => setTimeout(r, 600));
+        if (controller.signal.aborted || jobId !== analysisJobRef.current) {
+          return;
+        }
+
+        const pollRes = await fetch(`/api/youtube/progress/${ytJobId}`, {
+          signal: controller.signal,
+        });
+        if (!pollRes.ok) throw new Error('Failed to track video download progress.');
+        const pollData = await pollRes.json();
+
+        if (pollData.status === 'error') {
+          throw new Error(pollData.error || 'YouTube download failed.');
+        } else if (pollData.status === 'cancelled') {
+          return;
+        } else if (pollData.status === 'ready') {
+          downloadComplete = true;
+          break;
+        } else {
+          setProgress({
+            phase: 'preparing_video',
+            progressPercent: pollData.progressPercent ?? null,
+            statusText: `Downloading YouTube video locally (${pollData.progressPercent ?? 0}%)`,
+            details: `Fetching "${metadata.title}" via local yt-dlp for on-device CPU analysis.`,
+          });
+        }
+      }
+
+      if (jobId !== analysisJobRef.current) return;
+
+      // 4. Retrieve downloaded video file blob
+      setProgress({
+        phase: 'preparing_video',
+        progressPercent: 100,
+        statusText: 'Preparing video for local decoding…',
+        details: 'Loading downloaded video into local analysis pipeline.',
+      });
+
+      const fileRes = await fetch(`/api/youtube/file/${ytJobId}`, {
+        signal: controller.signal,
+      });
+      if (!fileRes.ok) throw new Error('Failed to load downloaded video file.');
+      const blob = await fileRes.blob();
+
+      if (jobId !== analysisJobRef.current) return;
+
+      const safeTitle = (metadata.title || 'youtube_video').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 50);
+      const videoFile = new File([blob], `${safeTitle}.mp4`, { type: 'video/mp4' });
+      const localUrl = URL.createObjectURL(videoFile);
+
+      const resolvedVideoMeta: VideoMetadata = {
+        ...metadata,
+        id: `yt-${ytJobId}`,
+        url: localUrl,
+      };
+
+      setCurrentVideo(resolvedVideoMeta);
+      activeSourceIdRef.current = resolvedVideoMeta.id;
+      activeYouTubeJobIdRef.current = null;
+
+      // 5. Feed into selected analysis pipeline (Local ONNX or Gemini Video 4 FPS)
+      const runOptions = { ...options, categories: { ...options.categories } };
+
+      if (runOptions.engine === 'gemini_video') {
+        const geminiRes = await analyzeVideoWithGemini({
+          youtubeJobId: ytJobId,
+          sourceId: resolvedVideoMeta.id,
+          options: runOptions,
+          signal: controller.signal,
+          onProgress: (nextProgress) => {
+            if (jobId === analysisJobRef.current && resolvedVideoMeta.id === activeSourceIdRef.current) {
+              setProgress(nextProgress);
+            }
+          },
+          videoDurationSeconds: metadata.durationSeconds,
+        });
+
+        if (jobId !== analysisJobRef.current || resolvedVideoMeta.id !== activeSourceIdRef.current) return;
+
+        setDetections(geminiRes.detections);
+        setCompletedAnalysisOptions(runOptions);
+        setActiveDetection(geminiRes.detections[0] ?? null);
+        setProgress({
+          phase: 'complete',
+          progressPercent: 100,
+          statusText: 'Gemini 4 FPS analysis complete — review potential matches',
+          details: `Analyzed via Google Gemini API at exactly 4 FPS (${geminiRes.report.samplingRateDescription}, videoMetadata.fps: 4). ${geminiRes.report.frameCoverageNotice} ${geminiRes.report.interFrameWarning} ${
+            geminiRes.detections.length === 0 ? 'No sampled frames exceeded the threshold; this is not evidence that the video is safe.' : ''
+          }`,
+          currentCandidateCount: geminiRes.detections.length,
+          incomplete: false,
+        });
+        return;
+      }
+
+      const result = await analyzeLocalVideo({
+        file: videoFile,
+        sourceId: resolvedVideoMeta.id,
+        options: runOptions,
+        signal: controller.signal,
+        onProgress: (nextProgress) => {
+          if (jobId === analysisJobRef.current && resolvedVideoMeta.id === activeSourceIdRef.current) {
+            setProgress(nextProgress);
+          }
+        },
+      });
+
+      if (jobId !== analysisJobRef.current || resolvedVideoMeta.id !== activeSourceIdRef.current) return;
+
+      setDetections(result.detections);
+      setCompletedAnalysisOptions(runOptions);
+      setActiveDetection(result.detections[0] ?? null);
+      setCurrentVideo((video) =>
+        video?.id === resolvedVideoMeta.id
+          ? {
+              ...video,
+              durationSeconds: result.durationSeconds || video.durationSeconds,
+              durationFormatted: formatSecondsToTimestamp(result.durationSeconds || video.durationSeconds),
+            }
+          : video
+      );
+
+      setProgress({
+        phase: 'complete',
+        progressPercent: 100,
+        statusText: 'Analysis complete — review potential matches',
+        details: result.detections.length
+          ? `${result.sampledFrames} sampled frames analyzed locally using ${result.provider}. Matches require human review; sparse sampling may miss brief content. ${result.usedSeekTimeFallback ? 'Some timestamps use seek-time fallback rather than decoded-frame mediaTime.' : 'Timestamps use decoded-frame mediaTime.'}`
+          : `${result.sampledFrames} sampled frames analyzed locally using ${result.provider}. No sampled frame exceeded the selected threshold; this is not evidence that the video is safe. ${result.usedSeekTimeFallback ? 'Some timestamps used seek-time fallback.' : 'Timestamps use decoded-frame mediaTime.'}`,
+        currentCandidateCount: result.detections.length,
+        processedFrames: result.sampledFrames,
+        totalFrames: result.sampledFrames,
+        incomplete: false,
+      });
+    } catch (error) {
+      if (jobId !== analysisJobRef.current) return;
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        setProgress({
+          phase: 'cancelled',
+          progressPercent: null,
+          statusText: 'Analysis cancelled',
+          details: 'The active operation was cancelled. No partial results are presented.',
+          incomplete: true,
+        });
+      } else {
+        const message = error instanceof Error ? error.message : 'Unknown YouTube analysis error.';
+        setErrorMessage(`YouTube analysis failed: ${message}`);
+        setProgress({
+          phase: 'error',
+          progressPercent: null,
+          statusText: 'Analysis failed',
+          details: 'No completed result is available. The downloaded file or process was stopped and can be restarted.',
+          incomplete: true,
+        });
+      }
+    } finally {
+      if (jobId === analysisJobRef.current) {
+        abortControllerRef.current = null;
+        activeYouTubeJobIdRef.current = null;
         setIsAnalyzing(false);
       }
     }
@@ -227,17 +506,7 @@ export default function App() {
     }
 
     setAnalysisMode('real_video_analysis');
-    setCurrentVideo(null);
-    setDetections([]);
-    setCompletedAnalysisOptions(null);
-    setActiveDetection(null);
-    setErrorMessage('URL analysis is unavailable. Local analysis accepts browser-selected video files only; URL metadata cannot produce valid detections.');
-    setProgress({
-      phase: 'error',
-      progressPercent: null,
-      statusText: 'Analysis unavailable',
-      details: 'No video was downloaded and no remote analysis service was called.',
-    });
+    void handleYouTubeAnalysis(targetUrl.trim());
   };
 
   // The selected file is decoded and analyzed locally in the browser worker.

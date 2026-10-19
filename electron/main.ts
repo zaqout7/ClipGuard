@@ -33,7 +33,7 @@ async function createWindow(): Promise<void> {
   const expectedOrigin = new URL(serviceUrl).origin;
 
   window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  window.webContents.on('will-navigate', (event, targetUrl) => {
+  window.webContents.on('will-navigate', (event: any, targetUrl: string) => {
     if (new URL(targetUrl).origin !== expectedOrigin) event.preventDefault();
   });
   await window.loadURL(serviceUrl);
@@ -91,7 +91,7 @@ void app.whenReady().then(startDesktop).catch((error: unknown) => {
   app.quit();
 });
 
-app.on('before-quit', (event) => {
+app.on('before-quit', (event: any) => {
   if (!serviceServer || allowQuit) return;
   event.preventDefault();
   closeServiceBounded();

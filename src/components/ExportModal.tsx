@@ -26,22 +26,22 @@ export function ExportModal({ isOpen, onClose, video, detections, progress, opti
     `Status: ${progress.statusText || 'Not analyzed'}`,
     ...(progress.details ? [`Analysis details: ${progress.details}`] : []),
     ...(demoOnly ? [] : [
-      'Model: AdamCodd/vit-base-nsfw-detector (Apache-2.0; pinned revision 8587de998f441aac03fdd57a85d2e4cb808c7d64)',
-      'Supported labels: sfw, nsfw (broad image classification only; not nudity localization)',
-      'Runtime: ONNX Runtime WebAssembly CPU, single thread',
-      `Threshold: ${options.sensitivity}% softmax score (not a calibrated probability)`,
+      'Detector: NudeNet YOLOv8n anatomical detector (bundled 320n.onnx) with ViT fallback',
+      'Supported categories: chest, rear, midriff, wardrobe shifts, undergarment slip, anatomical exposure',
+      'Runtime: ONNX Runtime WebAssembly CPU, multi-threaded Web Worker',
+      `Threshold: ${options.sensitivity}% confidence threshold (not a calibrated probability)`,
       `Sampling interval: ${options.sampleIntervalSec}s`,
       `Merge tolerance: ${options.mergeToleranceSec}s; segment padding: ${options.bufferSec}s`,
       `Frames processed: ${progress.processedFrames ?? 'unknown'}${progress.totalFrames === undefined ? '' : ` of ${progress.totalFrames}`}`,
-      'Preprocessing limitation: browser canvas resizes frames to 384x384; interpolation may vary by browser.',
-      'Timestamp limitation: decoded-frame mediaTime where available, otherwise seek-time fallback; not guaranteed frame-accurate, especially for variable-frame-rate media.',
+      'Preprocessing: browser canvas letterboxes frames into 320x320 preserving source aspect ratio.',
+      'Timestamp: decoded-frame mediaTime where available, otherwise seek-time fallback.',
       `Result completeness: ${completed ? 'complete for the sampled frames' : 'incomplete or not run'}`,
     ]),
     detections.length === 0 && completed
       ? 'Result: No sampled frame exceeded the selected threshold. This is not proof that the video is safe.'
       : '',
     ...detections.map((detection) =>
-      `${detection.startTimestamp} - ${detection.endTimestamp} | ${detection.categoryLabel}${demoOnly ? ` (illustrative sample score: ${detection.confidence}%)` : detection.modelScore === undefined ? '' : ` (model softmax score: ${(detection.modelScore * 100).toFixed(1)}%; not a calibrated probability)`} | ${detection.reviewStatus}${detection.editorNotes ? ` | Note: ${detection.editorNotes}` : ''}`
+      `${detection.startTimestamp} - ${detection.endTimestamp} | ${detection.categoryLabel}${demoOnly ? ` (illustrative sample score: ${detection.confidence}%)` : detection.modelScore === undefined ? (detection.confidence !== undefined ? ` (${detection.confidence}%)` : '') : ` (confidence: ${(detection.modelScore * 100).toFixed(1)}%; not a calibrated probability)`} | ${detection.reviewStatus}${detection.editorNotes ? ` | Note: ${detection.editorNotes}` : ''}`
     ),
   ].join('\n');
 

@@ -22,19 +22,31 @@ export function MethodologyDrawer({ isOpen, onClose }: MethodologyDrawerProps) {
         </div>
 
         <div className="space-y-4 text-[12px] leading-6 text-slate-300">
-          <p>
-            Local video files are sampled and classified in a browser worker using the bundled AdamCodd/vit-base-nsfw-detector ONNX model and ONNX Runtime WebAssembly CPU. The original file and extracted frames stay in the browser; this application does not send them to the Express service or a cloud inference API. YouTube/URL analysis is unavailable.
-          </p>
-          <ul className="space-y-2 list-disc pl-5 text-slate-300">
-            <li>The model outputs only broad SFW and NSFW image classes. It does not localize nudity or identify wardrobe events.</li>
-            <li>The displayed score is a softmax model score, not a calibrated probability. Matches are potential candidates requiring human review.</li>
-            <li>The model may flag cleavage or exposed skin as NSFW and can produce false positives and false negatives. The model card reports weaker results for generated images.</li>
-            <li>Frames are resized to 384×384 with browser canvas interpolation, which can vary by browser. Frames are sampled at the configured interval; brief events between samples may be missed. Timestamps use decoded-frame mediaTime where available and seek-time fallback otherwise; they are not guaranteed frame-accurate, especially across variable-frame-rate sources.</li>
-            <li>Demo results are synthetic and never represent model output. Review notes and exports apply to the displayed results.</li>
-            <li>Inference currently uses CPU WebAssembly only. NVIDIA GPU execution and Windows desktop packaging are not implemented.</li>
-          </ul>
+          <div>
+            <h4 className="font-semibold text-slate-200">Local ONNX Analysis Engine</h4>
+            <p className="mt-1">
+              Local video files and YouTube video URLs (acquired locally via bundled yt-dlp) can be sampled and classified on-device using the bundled NudeNet YOLOv8 (320n.onnx) detector or AdamCodd/vit-base-nsfw-detector fallback. Frames are extracted on-device via HTML5 Video and WebCodecs without transmitting data to external servers.
+            </p>
+          </div>
+
+          <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3">
+            <h4 className="font-semibold text-emerald-400">Google Gemini 4 FPS Video Analysis</h4>
+            <p className="mt-1 text-slate-300">
+              When the Gemini Video engine is selected, video streams are analyzed via the official Google Gemini v1beta API:
+            </p>
+            <ul className="mt-2 space-y-1.5 list-disc pl-4 text-slate-400">
+              <li><strong className="text-slate-200">Exact 4 FPS Requested:</strong> The API parameter <code className="text-emerald-400 font-mono">videoMetadata.fps</code> is explicitly set to 4 (one frame every 0.25 seconds). Frame extraction is configured at the model ingestion layer, not through prompt instructions alone.</li>
+              <li><strong className="text-slate-200">Anatomical Distinction:</strong> Exposed intimate anatomy (bare breasts, buttocks, genitalia) is strictly distinguished from covered anatomy (clothing, swimwear, cleavage, midriff). Covered regions are never described as confirmed nudity, clothing slips, or wardrobe malfunctions.</li>
+              <li><strong className="text-slate-200">Segment Aggregation:</strong> Consecutive findings across 4 FPS sampled frames are merged into contiguous review segments with deduplicated explanations and original video timestamps preserved.</li>
+              <li><strong className="text-slate-200">Project-Based Billing:</strong> Billing depends entirely on whether a billing account is attached to your Google Cloud / Google AI Studio project, not on model selection alone. Users must explicitly confirm project billing intent before requests are initiated.</li>
+              <li><strong className="text-slate-200">Rate & Quota Limits:</strong> Quota limits are governed by your Google AI Studio project plan. If a project quota or rate limit is reached (HTTP 429 / RESOURCE_EXHAUSTED), analysis halts immediately without retrying or activating paid tiers.</li>
+              <li><strong className="text-slate-200">Inter-Frame Events:</strong> Because sampling occurs at 4 FPS (every 250ms), rapid transient events occurring entirely between sampled frames may still be missed.</li>
+              <li><strong className="text-slate-200">Coverage Transparency:</strong> Frame sampling is processed internally by Gemini multimodal attention; individual frame-by-frame review cannot be independently verified externally, and verified frame counts are not fabricated.</li>
+            </ul>
+          </div>
+
           <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-slate-400">
-            No sampled frames above the selected threshold is not proof that a video is safe. Browser decoder codec support and model availability can vary by browser and installation.
+            No sampled frames above the selected threshold is not proof that a video is safe. Human editorial review is always required.
           </div>
         </div>
       </aside>

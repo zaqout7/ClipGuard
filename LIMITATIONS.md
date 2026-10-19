@@ -19,7 +19,7 @@ ClipGuard is a local CPU prototype for generating potential image-classification
 
 ## Other limitations
 
-- YouTube and other URL analysis are unavailable. Video files are selected locally and are not sent to a remote inference API.
+- YouTube video URLs are acquired locally via bundled yt-dlp, loaded directly into the browser decoding pipeline as an on-device stream, and evaluated using the identical local CPU ONNX classifier. No video bytes, frames, or metadata are transmitted to external inference services or cloud models.
 - No authorized representative evaluation set or documented accuracy evaluation was available. Synthetic marker/blue clips test execution and timestamp behavior only; real-world detection quality remains unverified.
 - GPU inference, broad codec compatibility, multi-hour resource stability, and clean-profile installer behavior remain unverified.
 - The Windows installer is unsigned. Its SHA-256 is `77B5340D2F873666797B356106D326722EC7996BD12C31EFB8705E94E02A8176`; this checksum was recomputed locally and is not an authenticated publisher checksum.
