@@ -36,6 +36,37 @@ jobs:
       - name: Run Type-Check
         run: npm run lint
 
+      # NOTE: Provisioning the NudeNet model asset requires network access in CI.
+      # The tests themselves remain offline and test against this provisioned local asset.
+      # The expected SHA-256 checksum was computed from our local asset,
+      # and is not published or independently authenticated by upstream.
+      # Downloading in CI does not resolve model-weight licensing.
+      # The applicable terms require verification before application distribution.
+      - name: Provision NudeNet 320n Model Asset
+        run: |
+          mkdir -p public/models/nudenet
+          TMP_FILE="public/models/nudenet/320n.onnx.tmp"
+          TARGET_FILE="public/models/nudenet/320n.onnx"
+          EXPECTED_SHA256="c15d8273adad2d0a92f014cc69ab2d6c311a06777a55545f2c4eb46f51911f0f"
+          MODEL_URL="https://github.com/notAI-tech/NudeNet/releases/download/v3.4-weights/320n.onnx"
+
+          echo "Downloading NudeNet 320n model from official release..."
+          curl -fL -sS --connect-timeout 30 --max-time 180 --retry 3 -o "$TMP_FILE" "$MODEL_URL"
+
+          echo "Verifying model SHA-256 checksum..."
+          CALCULATED_SHA256=$(sha256sum "$TMP_FILE" | awk '{print tolower($1)}')
+
+          if [ "$CALCULATED_SHA256" != "$EXPECTED_SHA256" ]; then
+            echo "ERROR: SHA-256 mismatch for 320n.onnx!"
+            echo "Expected: $EXPECTED_SHA256"
+            echo "Got:      $CALCULATED_SHA256"
+            rm -f "$TMP_FILE"
+            exit 1
+          fi
+
+          mv "$TMP_FILE" "$TARGET_FILE"
+          echo "Verified and provisioned $TARGET_FILE successfully."
+
       # NOTE: tests/youtube.test.ts is excluded for now because startYouTubeDownload()
       # spawns a yt-dlp binary (local binary / network process) which is not guaranteed
       # on a standard headless Linux runner and is not purely offline.
