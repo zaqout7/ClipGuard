@@ -28,7 +28,13 @@ export function VideoInputBar({ url, setUrl, isAnalyzing, onAnalyze, onLoadDemo,
           <input
             value={url}
             onChange={(e) => setUrl(e.target.value)}
-            placeholder="YouTube URL (analysis unavailable)"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !isAnalyzing && url.trim()) {
+                e.preventDefault();
+                onAnalyze(url);
+              }
+            }}
+            placeholder="Enter YouTube URL (e.g., https://www.youtube.com/watch?v=...)"
             className="flex-1 bg-transparent text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none"
           />
         </div>

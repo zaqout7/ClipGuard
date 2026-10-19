@@ -1,77 +1,87 @@
 {
-    "name": "clipguard",
-    "private": true,
-    "version": "1.0.0",
-    "main": "electron-dist/main.js",
-    "type": "module",
-    "scripts": {
-        "dev": "tsx scripts/run-server.ts",
-        "build": "vite build",
-        "preview": "vite preview",
-        "start": "tsx scripts/run-server.ts",
-        "desktop:compile": "node scripts/build-electron.mjs",
-        "desktop:dev": "npm run desktop:compile && electron .",
-        "desktop:dist": "npm run build && npm run desktop:compile && electron-builder --win nsis --x64",
-        "clean": "rm -rf dist server.js clipguard-project.tar.gz",
-        "lint": "tsc --noEmit",
-        "test": "node --import tsx --test tests/formatters.test.ts tests/modelPreprocessing.test.ts"
+  "name": "clipguard",
+  "private": true,
+  "version": "1.0.0",
+  "main": "electron-dist/main.js",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port=3000 --host=0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "tsx scripts/run-server.ts",
+    "desktop:compile": "node scripts/build-electron.mjs",
+    "desktop:dev": "npm run desktop:compile && electron .",
+    "desktop:dist": "npm run build && npm run desktop:compile && electron-builder --win nsis --x64",
+    "clean": "rm -rf dist server.js clipguard-project.tar.gz",
+    "lint": "tsc --noEmit",
+    "test": "node --import tsx --test tests/formatters.test.ts tests/modelPreprocessing.test.ts tests/youtube.test.ts tests/accuracyAndDiagnostics.test.ts tests/detectionPipelineRegression.test.ts tests/geminiService.test.ts"
+  },
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-react": "^6.1.1",
+    "lucide-react": "^0.546.0",
+    "react": "^19.0.1",
+    "react-dom": "^19.0.1",
+    "vite": "^8.3.0",
+    "express": "^4.21.2",
+    "dotenv": "^17.2.3",
+    "motion": "^12.23.24"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.14.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "autoprefixer": "^10.4.21",
+    "electron": "44.7.0",
+    "electron-builder": "26.15.3",
+    "esbuild": "^0.28.0",
+    "onnxruntime-web": "^1.30.0",
+    "tailwindcss": "^4.3.3",
+    "tsx": "^4.21.0",
+    "typescript": "^7.0.2"
+  },
+  "build": {
+    "appId": "org.clipguard.review",
+    "productName": "ClipGuard",
+    "directories": {
+      "output": "release"
     },
-    "dependencies": {
-        "dotenv": "^17.2.3",
-        "express": "^4.21.2"
-    },
-    "devDependencies": {
-        "@tailwindcss/vite": "^4.3.3",
-        "@types/express": "^4.17.21",
-        "@types/node": "^22.14.0",
-        "@types/react": "^19.3.0",
-        "@types/react-dom": "^19.3.0",
-        "@vitejs/plugin-react": "^6.1.2",
-        "autoprefixer": "^10.4.21",
-        "electron": "44.7.0",
-        "electron-builder": "26.15.3",
-        "esbuild": "^0.28.0",
-        "lucide-react": "^0.546.0",
-        "motion": "^12.43.0",
-        "onnxruntime-web": "^1.30.0",
-        "react": "^19.3.0",
-        "react-dom": "^19.3.0",
-        "tailwindcss": "^4.3.3",
-        "tsx": "^4.21.0",
-        "typescript": "^7.0.2",
-        "vite": "^8.3.4"
-    },
-    "build": {
-        "appId": "org.clipguard.review",
-        "productName": "ClipGuard",
-        "directories": {
-            "output": "release"
-        },
-        "files": [
-            "dist/**/*",
-            "electron-dist/**/*",
-            "package.json"
-        ],
-        "asar": true,
-        "asarUnpack": [
-            "dist/models/**"
-        ],
-        "win": {
-            "target": [
-                {
-                    "target": "nsis",
-                    "arch": [
-                        "x64"
-                    ]
-                }
-            ]
-        },
-        "nsis": {
-            "oneClick": false,
-            "perMachine": false,
-            "allowToChangeInstallationDirectory": true,
-            "createDesktopShortcut": true,
-            "createStartMenuShortcut": true
+    "files": [
+      "dist/**/*",
+      "electron-dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "asarUnpack": [
+      "dist/models/**"
+    ],
+    "extraFiles": [
+      {
+        "from": "bin",
+        "to": "bin",
+        "filter": [
+          "yt-dlp.exe",
+          "yt-dlp"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
         }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     }
+  }
 }

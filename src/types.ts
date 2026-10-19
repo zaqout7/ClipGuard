@@ -8,7 +8,8 @@ export type DetectionCategory =
   | 'clothing_shift_revealing'
   | 'undergarment_slip'
   | 'other_wardrobe_anomaly'
-  | 'nsfw_image_classification';
+  | 'nsfw_image_classification'
+  | 'covered_buttocks_outline';
 
 export interface VideoMetadata {
   id: string;
@@ -39,6 +40,50 @@ export interface DetectionEvent {
   editorNotes: string;
   severity?: Severity;
   verifiedFrameCount?: number;
+  frameCoverageNotice?: string;
+  diagnostic?: DetectionDiagnostic;
+}
+
+export interface DiagnosticFrameRecord {
+  frameIndex: number;
+  presentationSeconds: number;
+  timestamp: string;
+  detectorId: string;
+  rawPredictions: Array<{ className: string; score: number }>;
+  thresholdApplied: number;
+  ruleTriggered: string;
+}
+
+export interface DetectionDiagnostic {
+  detectorId: string;
+  thresholdApplied: number;
+  positiveFrameCount: number;
+  totalEvaluatedFrames?: number;
+  scoreCalculation: string;
+  frames: DiagnosticFrameRecord[];
+}
+
+export type AnalysisEngine = 'local_onnx' | 'gemini_video';
+
+export interface GeminiConfig {
+  apiKey?: string;
+  model: string;
+  fps: number;
+  userConfirmedProjectBillingIntent: boolean;
+  userConsentedVideoUpload: boolean;
+}
+
+export interface GeminiAnalysisReport {
+  requestedFps: number;
+  samplingIntervalSec: number;
+  samplingRateDescription: string;
+  apiCallSucceeded: boolean;
+  effectiveFpsConfirmedByApi: boolean;
+  coverageVerification: 'unverified' | 'verified';
+  model: string;
+  frameCoverageNotice: string;
+  interFrameWarning: string;
+  billingNotice: string;
 }
 
 export interface AnalysisOptions {
@@ -47,6 +92,9 @@ export interface AnalysisOptions {
   bufferSec: number;
   sampleIntervalSec: number;
   categories: Record<DetectionCategory, boolean>;
+  debugLogging?: boolean;
+  engine?: AnalysisEngine;
+  geminiConfig?: GeminiConfig;
 }
 
 export interface AnalysisProgress {

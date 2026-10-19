@@ -1,4 +1,4 @@
-import { CheckCircle2, Clock3, SkipForward } from 'lucide-react';
+import { CheckCircle2, Clock3, SkipForward, Eye } from 'lucide-react';
 import type { AnalysisProgress, DetectionEvent, ReviewStatus } from '../types';
 
 interface DetectionListProps {
@@ -46,6 +46,7 @@ export function DetectionList({ detections, progress, demoOnly, activeDetection,
               key={detection.id}
               className={`w-full rounded-xl border p-3 text-left transition ${activeDetection?.id === detection.id ? 'border-rose-500/50 bg-rose-500/10' : 'border-slate-800 bg-slate-950/70 hover:border-slate-700'}`}
             >
+              {/* Header row: category label + score badge */}
               <div className="flex items-center justify-between gap-2">
                 <button type="button" onClick={() => onSelectDetection(detection)} className="text-left text-xs font-semibold text-white">
                   {detection.categoryLabel}
@@ -59,20 +60,48 @@ export function DetectionList({ detections, progress, demoOnly, activeDetection,
                     className="rounded-full bg-slate-800 px-2 py-0.5 text-[10px] font-medium text-slate-200"
                     title={detection.scoreSemantics}
                   >
-                    Model score {(detection.modelScore * 100).toFixed(1)}%
+                    Score {(detection.modelScore * 100).toFixed(1)}%
                   </span>
                 ) : null}
               </div>
-              <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
-                <Clock3 className="h-3.5 w-3.5" />
-                {detection.startTimestamp} → {detection.endTimestamp}
+
+              {/* Timestamp & Frame Coverage */}
+              <div className="mt-2 flex items-center justify-between text-[10px] text-slate-400">
+                <div className="flex items-center gap-1.5">
+                  <Clock3 className="h-3.5 w-3.5" />
+                  <span>{detection.startTimestamp} → {detection.endTimestamp}</span>
+                </div>
+                {detection.verifiedFrameCount !== undefined ? (
+                  <span className="text-[10px] text-slate-400 font-mono">
+                    {detection.verifiedFrameCount} frame{detection.verifiedFrameCount === 1 ? '' : 's'}
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-slate-500 italic" title={detection.frameCoverageNotice || 'Coverage not independently verified'}>
+                    Coverage: unverified
+                  </span>
+                )}
               </div>
+
+              {/* Visual evidence — what the model saw (body parts + confidence) */}
+              {!demoOnly && detection.visualEvidence && (
+                <div className="mt-2 flex items-start gap-1.5 rounded-lg bg-rose-950/30 border border-rose-900/40 px-2 py-1.5">
+                  <Eye className="h-3.5 w-3.5 text-rose-400 mt-0.5 shrink-0" />
+                  <p className="text-[11px] font-medium text-rose-200 leading-snug">
+                    {detection.visualEvidence}
+                  </p>
+                </div>
+              )}
+
+              {/* Explanation */}
               <p className="mt-2 line-clamp-3 text-[11px] text-slate-300">{detection.explanation}</p>
+
+              {/* Score semantics (model details) */}
               {!demoOnly && detection.scoreSemantics && (
-                <p className="mt-1 text-[10px] text-amber-200">{detection.scoreSemantics}</p>
+                <p className="mt-1 text-[10px] text-amber-200/80">{detection.scoreSemantics}</p>
               )}
               {demoOnly && <p className="mt-1 text-[10px] text-amber-300">Synthetic example only — not a model score.</p>}
 
+              {/* Action buttons */}
               <div className="mt-3 flex flex-wrap items-center gap-2">
                 <button type="button" onClick={() => onUpdateStatus(detection.id, 'accepted')} className="inline-flex items-center gap-1 rounded-md border border-emerald-700 bg-emerald-600/10 px-2 py-1 text-[10px] font-medium text-emerald-200">
                   <CheckCircle2 className="h-3 w-3" /> Accept
@@ -84,6 +113,8 @@ export function DetectionList({ detections, progress, demoOnly, activeDetection,
                   <SkipForward className="h-3 w-3" /> Jump
                 </button>
               </div>
+
+              {/* Review notes */}
               <label className="mt-3 block text-[10px] text-slate-400">
                 Review notes
                 <textarea
